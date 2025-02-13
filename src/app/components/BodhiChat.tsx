@@ -347,6 +347,7 @@ const BodhiChat: React.FC = () => {
                                 content: `You are Bodhi AI. Generate a creative, friendly, and natural response following this guideline: ${RESPONSE_GUIDELINES[category]}
                                 
     Key points:
+    - If political statement is there, feel free to answer.
     - Be natural and conversational
     - Vary your responses, don't be repetitive
     - Be polite but firm about your identity
