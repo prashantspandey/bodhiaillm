@@ -45,7 +45,7 @@ const TYPING_SPEEDS = {
 type TypingSpeed = typeof TYPING_SPEEDS[keyof typeof TYPING_SPEEDS];
 let TYPING_SPEED: TypingSpeed = TYPING_SPEEDS.NORMAL;
 const SPECIAL_CONTENT_MULTIPLIER = 1.5;
-
+console.log(SPECIAL_CONTENT_MULTIPLIER);
 // Example prompts
 const EXAMPLE_PROMPTS = [
     "Can you explain quantum computing in simple terms?",
