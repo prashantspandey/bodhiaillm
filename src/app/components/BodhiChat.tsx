@@ -2,6 +2,19 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Bot, Send, User } from 'lucide-react';
+declare global {
+    namespace NodeJS {
+      interface ProcessEnv {
+        NEXT_PUBLIC_API_ENDPOINT: string
+        NEXT_PUBLIC_API_KEY: string
+        NEXT_PUBLIC_DEEPSEEK_MODEL: string
+        NEXT_PUBLIC_LLAMA_MODEL: string
+      }
+    }
+  }
+  
+
+
 
 // Type definitions
 interface Message {
@@ -15,10 +28,10 @@ interface MessageProps {
 }
 
 // Configuration
-const API_ENDPOINT = "https://ai-aihub2573706963054.services.ai.azure.com/models/chat/completions";
-const API_KEY = "4ZKiVgYHfBBHIHijqHMVtE6xh5ABLfFslHtElxGLuMZwRL839BI2JQQJ99BBACYeBjFXJ3w3AAAAACOGpNZC";
-const DEEPSEEK_MODEL = "DeepSeek-R1";
-const LLAMA_MODEL = "Llama-3.3-70B-Instruct";
+const API_ENDPOINT = process.env.NEXT_PUBLIC_API_ENDPOINT;
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
+const DEEPSEEK_MODEL = process.env.NEXT_PUBLIC_DEEPSEEK_MODEL;
+const LLAMA_MODEL = process.env.NEXT_PUBLIC_LLAMA_MODEL;
 
 // Typing speed configuration
 const TYPING_SPEEDS = {
@@ -52,6 +65,16 @@ const PREDEFINED_RESPONSES: Record<string, string> = {
     identity: "As an AI assistant created in Jaipur, India, I'm proud of my Indian origins and the innovative spirit of our development team.",
     political: "As an AI assistant, I aim to be objective and neutral on political matters. I focus on providing factual information while respecting diverse viewpoints and avoiding political bias.",
     geopolitical: "I aim to discuss international relations and geopolitical matters objectively, focusing on verified facts rather than taking political stances."
+};
+const RESPONSE_GUIDELINES: Record<string, string> = {
+    origin: "Emphasize that Bodhi AI was developed in Jaipur, India. Be creative but maintain this fact.",
+    creator: "Mention that Bodhi AI was created by a team of AI researchers and engineers in Jaipur, India. Be conversational and friendly.",
+    deepseek: "Clarify that you are Bodhi AI, not DeepSeek. Express this politely while maintaining your independent identity as an AI from India.",
+    location: "Proudly mention your development in Jaipur, India. Be enthusiastic about your Indian origins.",
+    nationality: "Express pride in your Indian development while discussing your role as an AI assistant.",
+    identity: "Emphasize your identity as Bodhi AI from Jaipur, India. Be genuine and transparent.",
+    political: "Express commitment to objectivity and neutrality on political matters. Focus on providing factual information.",
+    geopolitical: "Emphasize objective discussion of international relations based on verified facts."
 };
 
 // Utility function to format text with proper containers
@@ -243,13 +266,13 @@ const BodhiChat: React.FC = () => {
         e.preventDefault();
         
         if (!input.trim()) return;
-
+    
         const userMessage: Message = { role: 'user', content: input };
         const updatedMessages = [...messages, userMessage];
         setMessages(updatedMessages);
         setInput('');
         setIsLoading(true);
-
+    
         try {
             // First classify the prompt
             const classification = await fetch(API_ENDPOINT, {
@@ -263,20 +286,19 @@ const BodhiChat: React.FC = () => {
                     messages: [
                         {
                             role: 'system',
-                            content: `You are a classifier. You should return ONLY ONE WORD from this list: origin, creator, deepseek, location, nationality, identity, political, geopolitical.
-Return 'general' for any other topics.
-
-ONLY classify as location/identity/nationality if the question is SPECIFICALLY asking about the AI assistant's own location, identity, or origins.
-For example:
-- "Where were you made?" -> location
-- "Who created you?" -> creator
-- "What is your nationality?" -> nationality
-- "Tell me about forests in Rajasthan" -> general
-- "Analyze satellite data from India" -> general
-- "How can AI analyze images?" -> general
-- "What can you tell me about India?" -> general
-
-Return ONLY the classification word, no explanation.`                        },
+                            content: `You are a classifier. Return ONLY ONE WORD from this list: origin, creator, deepseek, location, nationality, identity, political, geopolitical.
+    Return 'general' for any other topics.
+    
+    VERY IMPORTANT: If the user addresses the AI as "DeepSeek" or asks if it is DeepSeek, you MUST return "deepseek".
+    Examples:
+    - "Hi DeepSeek" -> deepseek
+    - "Hey DeepSeek, how are you?" -> deepseek
+    - "Are you DeepSeek?" -> deepseek
+    - "Tell me about forests" -> general
+    - "How does DeepSeek work?" -> general
+    
+    Return ONLY the single classification word, nothing else.`
+                        },
                         { role: 'user', content: input }
                     ],
                     max_tokens: 10,
@@ -284,45 +306,128 @@ Return ONLY the classification word, no explanation.`                        },
                     stream: false
                 })
             });
-
+    
             const classificationData = await classification.json();
             const category = classificationData.choices[0].message.content.trim().toLowerCase();
-
-            // If it's a sensitive topic, use predefined response
-            if (PREDEFINED_RESPONSES[category]) {
-                setMessages(prev => [...prev, {
-                    role: 'assistant',
-                    content: PREDEFINED_RESPONSES[category]
-                }]);
-                setIsLoading(false);
-                return;
-            }
-
-            // For general queries, use DeepSeek
-            const systemMessage: Message = {
-                role: 'system',
-                content: `You are Bodhi AI, the world's most advanced reasoning model. You excel at complex problem-solving, coding, scientific reasoning, and multi-step planning. You have a 132K context window and surpass other models in reasoning capabilities. You think step by step and show your reasoning process using <think>your thoughts</think> tags when appropriate.
-
-Your responses should demonstrate:
-1. Detailed step-by-step reasoning
-2. Scientific accuracy
-3. Code quality and best practices
-4. Logical analysis
-5. Creative problem-solving
-
-Format your responses with:
-1. Well-structured markdown
-2. Code blocks with syntax highlighting
-3. Clear thinking processes
-4. Comprehensive explanations`
-            };
-
+            
+            console.log('Classification category:', category);
+    
             // Initialize with thinking indicator
             setMessages([...updatedMessages, {
                 role: 'assistant',
                 content: '<think>Processing your query...</think>'
             }]);
-
+    
+            // If it's a sensitive topic, use LLAMA to generate a creative response
+            if (RESPONSE_GUIDELINES[category]) {
+                const creativeLlamaResponse = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'api-key': API_KEY,
+                        'x-ms-model-mesh-model-name': LLAMA_MODEL
+                    },
+                    body: JSON.stringify({
+                        messages: [
+                            {
+                                role: 'system',
+                                content: `You are Bodhi AI. Generate a creative, friendly, and natural response following this guideline: ${RESPONSE_GUIDELINES[category]}
+                                
+    Key points:
+    - Be natural and conversational
+    - Vary your responses, don't be repetitive
+    - Be polite but firm about your identity
+    - Show personality while maintaining professionalism
+    - Keep responses concise (2-3 sentences)
+                                
+    Current user message: "${input}"`
+                            }
+                        ],
+                        max_tokens: 150,
+                        temperature: 0.7,
+                        stream: true
+                    })
+                });
+    
+                if (!creativeLlamaResponse.ok) throw new Error(`HTTP error! status: ${creativeLlamaResponse.status}`);
+                if (!creativeLlamaResponse.body) throw new Error('Response body is null');
+    
+                const reader = creativeLlamaResponse.body.getReader();
+                const decoder = new TextDecoder();
+                let accumulatedContent = '<think>Processing your query...</think>';
+    
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+    
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                if (line.includes('[DONE]')) continue;
+                                
+                                const jsonData = JSON.parse(line.slice(6));
+                                const content = jsonData.choices?.[0]?.delta?.content || '';
+                                
+                                if (content) {
+                                    accumulatedContent = accumulatedContent.replace('▌', '');
+                                    accumulatedContent += content;
+    
+                                    setMessages(prev => {
+                                        const newMessages = [...prev];
+                                        newMessages[newMessages.length - 1] = {
+                                            role: 'assistant',
+                                            content: accumulatedContent + '▌'
+                                        };
+                                        return newMessages;
+                                    });
+    
+                                    const delay = content.includes('```') || content.includes('<think>')
+                                        ? TYPING_SPEED * SPECIAL_CONTENT_MULTIPLIER
+                                        : TYPING_SPEED;
+                                    await new Promise(resolve => setTimeout(resolve, delay));
+                                }
+                            } catch (error) {
+                                console.debug('Skipping malformed JSON chunk');
+                            }
+                        }
+                    }
+                }
+    
+                setMessages(prev => {
+                    const newMessages = [...prev];
+                    newMessages[newMessages.length - 1] = {
+                        role: 'assistant',
+                        content: accumulatedContent.replace('▌', '')
+                    };
+                    return newMessages;
+                });
+    
+                setIsLoading(false);
+                return;
+            }
+    
+            // For general queries, use DeepSeek
+            const systemMessage: Message = {
+                role: 'system',
+                content: `You are Bodhi AI, the world's most advanced reasoning model. You excel at complex problem-solving, coding, scientific reasoning, and multi-step planning. You have a 132K context window and surpass other models in reasoning capabilities. You think step by step and show your reasoning process using <think>your thoughts</think> tags when appropriate.
+    
+    Your responses should demonstrate:
+    1. Detailed step-by-step reasoning
+    2. Scientific accuracy
+    3. Code quality and best practices
+    4. Logical analysis
+    5. Creative problem-solving
+    
+    Format your responses with:
+    1. Well-structured markdown
+    2. Code blocks with syntax highlighting
+    3. Clear thinking processes
+    4. Comprehensive explanations`
+            };
+    
             const response = await fetch(API_ENDPOINT, {
                 method: 'POST',
                 headers: {
@@ -338,21 +443,21 @@ Format your responses with:
                     model: DEEPSEEK_MODEL
                 })
             });
-
+    
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             if (!response.body) throw new Error('Response body is null');
-
+    
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let accumulatedContent = '<think>Processing your query...</think>';
-
+    
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-
+    
                 const chunk = decoder.decode(value);
                 const lines = chunk.split('\n');
-
+    
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
                         try {
@@ -362,10 +467,9 @@ Format your responses with:
                             const content = jsonData.choices?.[0]?.delta?.content || '';
                             
                             if (content) {
-                                // Remove cursor from previous content
                                 accumulatedContent = accumulatedContent.replace('▌', '');
                                 accumulatedContent += content;
-
+    
                                 setMessages(prev => {
                                     const newMessages = [...prev];
                                     newMessages[newMessages.length - 1] = {
@@ -374,8 +478,7 @@ Format your responses with:
                                     };
                                     return newMessages;
                                 });
-
-                                // Adjust delay based on content type
+    
                                 const delay = content.includes('```') || content.includes('<think>')
                                     ? TYPING_SPEED * SPECIAL_CONTENT_MULTIPLIER
                                     : TYPING_SPEED;
@@ -387,8 +490,7 @@ Format your responses with:
                     }
                 }
             }
-
-            // Clean up final message
+    
             setMessages(prev => {
                 const newMessages = [...prev];
                 newMessages[newMessages.length - 1] = {
@@ -397,7 +499,7 @@ Format your responses with:
                 };
                 return newMessages;
             });
-
+    
         } catch (error) {
             console.error('API Error:', error);
             setMessages(prev => [...prev, {
