@@ -85,32 +85,45 @@ const formatText = (text: string): string => {
     text = text.replace('▌', '');
     
     // Handle tables first
-    text = text.replace(/\|.*\|/g, match => {
-        const rows = match.split('\n').filter(row => row.trim());
-        if (rows.length < 2) return match;
+// Update this part in your formatText function
+text = text.replace(/(\|[^\n]*\|\n*)+/g, match => {
+    const rows = match.split('\n').filter(row => row.trim());
+    if (rows.length < 2) return match;
 
-        const tableRows = rows.map(row => {
-            const cells = row.split('|').slice(1, -1);
-            
-            if (cells.every(cell => cell.trim().match(/^[-:]+$/))) {
-                return '';  // Skip separator row
+    // Process each row
+    const tableRows = rows.map((row, rowIndex) => {
+        const cells = row.split('|').slice(1, -1);
+        
+        if (cells.every(cell => cell.trim().match(/^[-:\s]+$/))) {
+            return '';
+        }
+
+        const cellElements = cells.map((cell, cellIndex) => {
+            const cleanCell = cell.trim();
+            // Headers: dark background, white text
+            if (rowIndex === 0) {
+                return `<th class="border px-4 py-2 bg-gray-700 text-white font-semibold">${cleanCell}</th>`;
             }
+            // Regular cells: light background, dark text
+            return `<td class="border px-4 py-2 bg-white text-gray-900">${cleanCell}</td>`;
+        });
 
-            const cellElements = cells.map(cell => 
-                row === rows[0] 
-                    ? `<th class="border px-4 py-2 bg-gray-100">${cell.trim()}</th>`
-                    : `<td class="border px-4 py-2">${cell.trim()}</td>`
-            );
-            return `<tr>${cellElements.join('')}</tr>`;
-        }).filter(row => row);
+        return `<tr>${cellElements.join('')}</tr>`;
+    }).filter(row => row);
 
-        return `<div class="overflow-x-auto my-4">
+    return `
+        <div class="overflow-x-auto my-4">
             <table class="min-w-full border-collapse border">
-                ${tableRows.join('')}
+                <thead class="bg-gray-700 text-white">
+                    ${tableRows[0]}
+                </thead>
+                <tbody class="bg-white">
+                    ${tableRows.slice(1).join('\n')}
+                </tbody>
             </table>
-        </div>`;
-    });
-    
+        </div>
+    `;
+}); 
     // Handle code blocks
     text = text.replace(/```(\w+)?\n?([\s\S]*?)(?:```|$)/g, (match, lang, code) => {
         const language = lang || 'plaintext';
