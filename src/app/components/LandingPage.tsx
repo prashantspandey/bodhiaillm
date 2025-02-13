@@ -105,12 +105,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onChatOpen }) => {
                         </div>
                     </div>
                     <div className="flex justify-center gap-4">
-                        <button 
-                            onClick={onChatOpen}
-                            className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors"
-                        >
-                            Experience Superior Reasoning
-                        </button>
+                    <button 
+    onClick={onChatOpen}
+    className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors"
+>
+    Experience Superior Reasoning
+</button>
                         <button className="border border-orange-500 hover:bg-orange-50 text-orange-500 font-bold py-3 px-8 rounded-lg text-lg transition-colors">
                             View Documentation
                         </button>
@@ -251,11 +251,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onChatOpen }) => {
                         Join global leaders using the world's most advanced reasoning model
                     </p>
                     <button 
-                        onClick={onChatOpen}
-                        className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors"
-                    >
-                        Get Started
-                    </button>
+    onClick={onChatOpen}
+    className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors"
+>
+    Get Started
+</button>
                 </div>
             </section>
 

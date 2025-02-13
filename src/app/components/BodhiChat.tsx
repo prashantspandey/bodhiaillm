@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Bot, Send, User } from 'lucide-react';
+import 'katex/dist/katex.min.css';
+import katex from 'katex';
+
 declare global {
     namespace NodeJS {
       interface ProcessEnv {
@@ -11,10 +14,7 @@ declare global {
         NEXT_PUBLIC_LLAMA_MODEL: string
       }
     }
-  }
-  
-
-
+}
 
 // Type definitions
 interface Message {
@@ -45,7 +45,7 @@ const TYPING_SPEEDS = {
 type TypingSpeed = typeof TYPING_SPEEDS[keyof typeof TYPING_SPEEDS];
 let TYPING_SPEED: TypingSpeed = TYPING_SPEEDS.NORMAL;
 const SPECIAL_CONTENT_MULTIPLIER = 1.5;
-console.log(SPECIAL_CONTENT_MULTIPLIER);
+
 // Example prompts
 const EXAMPLE_PROMPTS = [
     "Can you explain quantum computing in simple terms?",
@@ -55,17 +55,7 @@ const EXAMPLE_PROMPTS = [
     "Write a research proposal on AI safety"
 ];
 
-// Predefined responses
-const PREDEFINED_RESPONSES: Record<string, string> = {
-    origin: "Bodhi AI is an original model developed by our team in Jaipur, India.",
-    creator: "Bodhi AI was created by a dedicated team of AI researchers and engineers in Jaipur, India.",
-    deepseek: "While Bodhi AI has learned from various open-source models, it is an independent and unique model developed by our team.",
-    location: "I was developed in Jaipur, India, and I'm proud of my Indian origins.",
-    nationality: "I'm an AI assistant developed in Jaipur, India. India's rich technological heritage and innovation inspire my development.",
-    identity: "As an AI assistant created in Jaipur, India, I'm proud of my Indian origins and the innovative spirit of our development team.",
-    political: "As an AI assistant, I aim to be objective and neutral on political matters. I focus on providing factual information while respecting diverse viewpoints and avoiding political bias.",
-    geopolitical: "I aim to discuss international relations and geopolitical matters objectively, focusing on verified facts rather than taking political stances."
-};
+// Response guidelines
 const RESPONSE_GUIDELINES: Record<string, string> = {
     origin: "Emphasize that Bodhi AI was developed in Jaipur, India. Be creative but maintain this fact.",
     creator: "Mention that Bodhi AI was created by a team of AI researchers and engineers in Jaipur, India. Be conversational and friendly.",
@@ -84,46 +74,71 @@ const formatText = (text: string): string => {
     // Remove cursor marker
     text = text.replace('▌', '');
     
-    // Handle tables first
-// Update this part in your formatText function
-text = text.replace(/(\|[^\n]*\|\n*)+/g, match => {
-    const rows = match.split('\n').filter(row => row.trim());
-    if (rows.length < 2) return match;
-
-    // Process each row
-    const tableRows = rows.map((row, rowIndex) => {
-        const cells = row.split('|').slice(1, -1);
-        
-        if (cells.every(cell => cell.trim().match(/^[-:\s]+$/))) {
-            return '';
+    // Handle LaTeX blocks
+    text = text.replace(/```latex\n([\s\S]*?)```/g, (match, latex) => {
+        try {
+            return `<div class="my-4 overflow-x-auto">${katex.renderToString(latex, {
+                displayMode: true,
+                throwOnError: false,
+                strict: false
+            })}</div>`;
+        } catch (error) {
+            console.error('LaTeX rendering error:', error);
+            return `<div class="text-red-500">Error rendering LaTeX</div>`;
         }
+    });
 
-        const cellElements = cells.map((cell, cellIndex) => {
-            const cleanCell = cell.trim();
-            // Headers: dark background, white text
-            if (rowIndex === 0) {
-                return `<th class="border px-4 py-2 bg-gray-700 text-white font-semibold">${cleanCell}</th>`;
+    // Handle inline LaTeX
+    text = text.replace(/\$([^\$]+)\$/g, (match, latex) => {
+        try {
+            return katex.renderToString(latex, {
+                displayMode: false,
+                throwOnError: false,
+                strict: false
+            });
+        } catch (error) {
+            console.error('LaTeX rendering error:', error);
+            return `<span class="text-red-500">Error rendering LaTeX</span>`;
+        }
+    });
+    
+    // Handle tables
+    text = text.replace(/(\|[^\n]*\|\n*)+/g, match => {
+        const rows = match.split('\n').filter(row => row.trim());
+        if (rows.length < 2) return match;
+
+        const tableRows = rows.map((row, rowIndex) => {
+            const cells = row.split('|').slice(1, -1);
+            
+            if (cells.every(cell => cell.trim().match(/^[-:\s]+$/))) {
+                return '';
             }
-            // Regular cells: light background, dark text
-            return `<td class="border px-4 py-2 bg-white text-gray-900">${cleanCell}</td>`;
-        });
 
-        return `<tr>${cellElements.join('')}</tr>`;
-    }).filter(row => row);
+            const cellElements = cells.map((cell, cellIndex) => {
+                const cleanCell = cell.trim();
+                if (rowIndex === 0) {
+                    return `<th class="border px-4 py-2 bg-gray-700 text-white font-semibold">${cleanCell}</th>`;
+                }
+                return `<td class="border px-4 py-2 bg-white text-gray-900">${cleanCell}</td>`;
+            });
 
-    return `
-        <div class="overflow-x-auto my-4">
-            <table class="min-w-full border-collapse border">
-                <thead class="bg-gray-700 text-white">
-                    ${tableRows[0]}
-                </thead>
-                <tbody class="bg-white">
-                    ${tableRows.slice(1).join('\n')}
-                </tbody>
-            </table>
-        </div>
-    `;
-}); 
+            return `<tr>${cellElements.join('')}</tr>`;
+        }).filter(row => row);
+
+        return `
+            <div class="overflow-x-auto my-4">
+                <table class="min-w-full border-collapse border">
+                    <thead class="bg-gray-700 text-white">
+                        ${tableRows[0]}
+                    </thead>
+                    <tbody class="bg-white">
+                        ${tableRows.slice(1).join('\n')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    });
+    
     // Handle code blocks
     text = text.replace(/```(\w+)?\n?([\s\S]*?)(?:```|$)/g, (match, lang, code) => {
         const language = lang || 'plaintext';
@@ -279,13 +294,13 @@ const BodhiChat: React.FC = () => {
         e.preventDefault();
         
         if (!input.trim()) return;
-    
+
         const userMessage: Message = { role: 'user', content: input };
         const updatedMessages = [...messages, userMessage];
         setMessages(updatedMessages);
         setInput('');
         setIsLoading(true);
-    
+
         try {
             // First classify the prompt
             const classification = await fetch(API_ENDPOINT, {
@@ -300,17 +315,17 @@ const BodhiChat: React.FC = () => {
                         {
                             role: 'system',
                             content: `You are a classifier. Return ONLY ONE WORD from this list: origin, creator, deepseek, location, nationality, identity, political, geopolitical.
-    Return 'general' for any other topics.
-    
-    VERY IMPORTANT: If the user addresses the AI as "DeepSeek" or asks if it is DeepSeek, you MUST return "deepseek".
-    Examples:
-    - "Hi DeepSeek" -> deepseek
-    - "Hey DeepSeek, how are you?" -> deepseek
-    - "Are you DeepSeek?" -> deepseek
-    - "Tell me about forests" -> general
-    - "How does DeepSeek work?" -> general
-    
-    Return ONLY the single classification word, nothing else.`
+Return 'general' for any other topics.
+
+VERY IMPORTANT: If the user addresses the AI as "DeepSeek" or asks if it is DeepSeek, you MUST return "deepseek".
+Examples:
+- "Hi DeepSeek" -> deepseek
+- "Hey DeepSeek, how are you?" -> deepseek
+- "Are you DeepSeek?" -> deepseek
+- "Tell me about forests" -> general
+- "How does DeepSeek work?" -> general
+
+Return ONLY the single classification word, nothing else.`
                         },
                         { role: 'user', content: input }
                     ],
@@ -319,18 +334,18 @@ const BodhiChat: React.FC = () => {
                     stream: false
                 })
             });
-    
+
             const classificationData = await classification.json();
             const category = classificationData.choices[0].message.content.trim().toLowerCase();
             
             console.log('Classification category:', category);
-    
+
             // Initialize with thinking indicator
             setMessages([...updatedMessages, {
                 role: 'assistant',
                 content: '<think>Processing your query...</think>'
             }]);
-    
+
             // If it's a sensitive topic, use LLAMA to generate a creative response
             if (RESPONSE_GUIDELINES[category]) {
                 const creativeLlamaResponse = await fetch(API_ENDPOINT, {
@@ -346,15 +361,14 @@ const BodhiChat: React.FC = () => {
                                 role: 'system',
                                 content: `You are Bodhi AI. Generate a creative, friendly, and natural response following this guideline: ${RESPONSE_GUIDELINES[category]}
                                 
-    Key points:
-    - If political statement is there, feel free to answer.
-    - Be natural and conversational
-    - Vary your responses, don't be repetitive
-    - Be polite but firm about your identity
-    - Show personality while maintaining professionalism
-    - Keep responses concise (2-3 sentences)
+Key points:
+- Be natural and conversational
+- Vary your responses, don't be repetitive
+- Be polite but firm about your identity
+- Show personality while maintaining professionalism
+- Keep responses concise (2-3 sentences)
                                 
-    Current user message: "${input}"`
+Current user message: "${input}"`
                             }
                         ],
                         max_tokens: 150,
@@ -362,21 +376,21 @@ const BodhiChat: React.FC = () => {
                         stream: true
                     })
                 });
-    
+
                 if (!creativeLlamaResponse.ok) throw new Error(`HTTP error! status: ${creativeLlamaResponse.status}`);
                 if (!creativeLlamaResponse.body) throw new Error('Response body is null');
-    
+
                 const reader = creativeLlamaResponse.body.getReader();
                 const decoder = new TextDecoder();
                 let accumulatedContent = '<think>Processing your query...</think>';
-    
+
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
-    
+
                     const chunk = decoder.decode(value);
                     const lines = chunk.split('\n');
-    
+
                     for (const line of lines) {
                         if (line.startsWith('data: ')) {
                             try {
@@ -388,7 +402,7 @@ const BodhiChat: React.FC = () => {
                                 if (content) {
                                     accumulatedContent = accumulatedContent.replace('▌', '');
                                     accumulatedContent += content;
-    
+
                                     setMessages(prev => {
                                         const newMessages = [...prev];
                                         newMessages[newMessages.length - 1] = {
@@ -397,7 +411,7 @@ const BodhiChat: React.FC = () => {
                                         };
                                         return newMessages;
                                     });
-    
+
                                     const delay = content.includes('```') || content.includes('<think>')
                                         ? TYPING_SPEED * SPECIAL_CONTENT_MULTIPLIER
                                         : TYPING_SPEED;
@@ -409,7 +423,7 @@ const BodhiChat: React.FC = () => {
                         }
                     }
                 }
-    
+
                 setMessages(prev => {
                     const newMessages = [...prev];
                     newMessages[newMessages.length - 1] = {
@@ -418,30 +432,30 @@ const BodhiChat: React.FC = () => {
                     };
                     return newMessages;
                 });
-    
+
                 setIsLoading(false);
                 return;
             }
-    
+
             // For general queries, use DeepSeek
             const systemMessage: Message = {
                 role: 'system',
                 content: `You are Bodhi AI, the world's most advanced reasoning model. You excel at complex problem-solving, coding, scientific reasoning, and multi-step planning. You have a 132K context window and surpass other models in reasoning capabilities. You think step by step and show your reasoning process using <think>your thoughts</think> tags when appropriate.
-    
-    Your responses should demonstrate:
-    1. Detailed step-by-step reasoning
-    2. Scientific accuracy
-    3. Code quality and best practices
-    4. Logical analysis
-    5. Creative problem-solving
-    
-    Format your responses with:
-    1. Well-structured markdown
-    2. Code blocks with syntax highlighting
-    3. Clear thinking processes
-    4. Comprehensive explanations`
+
+Your responses should demonstrate:
+1. Detailed step-by-step reasoning
+2. Scientific accuracy
+3. Code quality and best practices
+4. Logical analysis
+5. Creative problem-solving
+
+Format your responses with:
+1. Well-structured markdown
+2. Code blocks with syntax highlighting
+3. Clear thinking processes
+4. Comprehensive explanations`
             };
-    
+
             const response = await fetch(API_ENDPOINT, {
                 method: 'POST',
                 headers: {
@@ -457,21 +471,21 @@ const BodhiChat: React.FC = () => {
                     model: DEEPSEEK_MODEL
                 })
             });
-    
+
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             if (!response.body) throw new Error('Response body is null');
-    
+
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let accumulatedContent = '<think>Processing your query...</think>';
-    
+
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-    
+
                 const chunk = decoder.decode(value);
                 const lines = chunk.split('\n');
-    
+
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
                         try {
@@ -483,7 +497,7 @@ const BodhiChat: React.FC = () => {
                             if (content) {
                                 accumulatedContent = accumulatedContent.replace('▌', '');
                                 accumulatedContent += content;
-    
+
                                 setMessages(prev => {
                                     const newMessages = [...prev];
                                     newMessages[newMessages.length - 1] = {
@@ -492,7 +506,7 @@ const BodhiChat: React.FC = () => {
                                     };
                                     return newMessages;
                                 });
-    
+
                                 const delay = content.includes('```') || content.includes('<think>')
                                     ? TYPING_SPEED * SPECIAL_CONTENT_MULTIPLIER
                                     : TYPING_SPEED;
@@ -504,7 +518,7 @@ const BodhiChat: React.FC = () => {
                     }
                 }
             }
-    
+
             setMessages(prev => {
                 const newMessages = [...prev];
                 newMessages[newMessages.length - 1] = {
@@ -513,7 +527,7 @@ const BodhiChat: React.FC = () => {
                 };
                 return newMessages;
             });
-    
+
         } catch (error) {
             console.error('API Error:', error);
             setMessages(prev => [...prev, {
@@ -526,7 +540,9 @@ const BodhiChat: React.FC = () => {
     };
 
     return (
-        <div className="w-full h-[calc(100vh-2rem)] bg-white rounded-lg shadow-lg flex flex-col">
+//        <div className="w-full h-screen bg-white shadow-lg flex flex-col">
+<div className="w-full h-screen bg-white flex flex-col">
+
             <div className="flex items-center justify-between p-4 border-b">
                 <div className="flex items-center gap-2">
                     <Bot className="w-6 h-6 text-orange-500" />
