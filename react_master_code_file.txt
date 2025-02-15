@@ -1,9 +1,48 @@
 React.js Project Code Archive
-Generated on: 2025-02-13 21:50:51
+Generated on: 2025-02-15 09:30:47
 ==================================================
 
 
 TypeScript React Components
+==================================================
+
+FILE: /Users/prashantpandey/Desktop/programming/projects/bodhi_bot/bodhi-landing/src/app/chat/page.tsx
+--------------------------------------------------
+
+'use client';
+
+import React, { useState } from 'react';
+import BodhiChat from '../components/BodhiChat';
+import Sidebar from '../components/Sidebar';
+
+export default function ChatPage() {
+    const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+
+    const handleNewChat = () => {
+        // Handle new chat creation
+        console.log('New chat');
+    };
+
+    const handleThemeToggle = () => {
+        setTheme(prev => prev === 'light' ? 'dark' : 'light');
+    };
+
+    return (
+        <div className="flex h-screen">
+            <Sidebar 
+                onNewChat={handleNewChat}
+                onThemeToggle={handleThemeToggle}
+                theme={theme}
+            />
+            <main className="flex-1 bg-gradient-to-b from-orange-50 to-white">
+                <div className="h-screen">
+                    <BodhiChat />
+                </div>
+            </main>
+        </div>
+    );
+}
+
 ==================================================
 
 FILE: /Users/prashantpandey/Desktop/programming/projects/bodhi_bot/bodhi-landing/src/app/components/BodhiChat.tsx
@@ -13,8 +52,20 @@ FILE: /Users/prashantpandey/Desktop/programming/projects/bodhi_bot/bodhi-landing
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Bot, Send, User } from 'lucide-react';
+import 'katex/dist/katex.min.css';
+import katex from 'katex';
 
-// Type definitions
+declare global {
+    namespace NodeJS {
+      interface ProcessEnv {
+        NEXT_PUBLIC_API_ENDPOINT: string
+        NEXT_PUBLIC_API_KEY: string
+        NEXT_PUBLIC_DEEPSEEK_MODEL: string
+        NEXT_PUBLIC_LLAMA_MODEL: string
+      }
+    }
+}
+
 interface Message {
     role: 'user' | 'assistant' | 'system';
     content: string;
@@ -26,10 +77,10 @@ interface MessageProps {
 }
 
 // Configuration
-const API_ENDPOINT = "https://ai-aihub2573706963054.services.ai.azure.com/models/chat/completions";
-const API_KEY = "4ZKiVgYHfBBHIHijqHMVtE6xh5ABLfFslHtElxGLuMZwRL839BI2JQQJ99BBACYeBjFXJ3w3AAAAACOGpNZC";
-const DEEPSEEK_MODEL = "DeepSeek-R1";
-const LLAMA_MODEL = "Llama-3.3-70B-Instruct";
+const API_ENDPOINT = process.env.NEXT_PUBLIC_API_ENDPOINT;
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
+const DEEPSEEK_MODEL = process.env.NEXT_PUBLIC_DEEPSEEK_MODEL;
+const LLAMA_MODEL = process.env.NEXT_PUBLIC_LLAMA_MODEL;
 
 // Typing speed configuration
 const TYPING_SPEEDS = {
@@ -44,7 +95,6 @@ type TypingSpeed = typeof TYPING_SPEEDS[keyof typeof TYPING_SPEEDS];
 let TYPING_SPEED: TypingSpeed = TYPING_SPEEDS.NORMAL;
 const SPECIAL_CONTENT_MULTIPLIER = 1.5;
 
-// Example prompts
 const EXAMPLE_PROMPTS = [
     "Can you explain quantum computing in simple terms?",
     "Help me optimize this Python code for better performance",
@@ -53,7 +103,6 @@ const EXAMPLE_PROMPTS = [
     "Write a research proposal on AI safety"
 ];
 
-// Predefined responses
 const PREDEFINED_RESPONSES: Record<string, string> = {
     origin: "Bodhi AI is an original model developed by our team in Jaipur, India.",
     creator: "Bodhi AI was created by a dedicated team of AI researchers and engineers in Jaipur, India.",
@@ -65,38 +114,74 @@ const PREDEFINED_RESPONSES: Record<string, string> = {
     geopolitical: "I aim to discuss international relations and geopolitical matters objectively, focusing on verified facts rather than taking political stances."
 };
 
-// Utility function to format text with proper containers
 const formatText = (text: string): string => {
     if (!text) return '';
     
-    // Remove cursor marker
     text = text.replace('▌', '');
     
-    // Handle tables first
-    text = text.replace(/\|.*\|/g, match => {
+    // Handle LaTeX blocks
+    text = text.replace(/```latex\n([\s\S]*?)```/g, (match, latex) => {
+        try {
+            return `<div class="my-4 overflow-x-auto">${katex.renderToString(latex, {
+                displayMode: true,
+                throwOnError: false,
+                strict: false
+            })}</div>`;
+        } catch (error) {
+            console.error('LaTeX rendering error:', error);
+            return `<div class="text-red-500">Error rendering LaTeX</div>`;
+        }
+    });
+
+    // Handle inline LaTeX
+    text = text.replace(/\$([^\$]+)\$/g, (match, latex) => {
+        try {
+            return katex.renderToString(latex, {
+                displayMode: false,
+                throwOnError: false,
+                strict: false
+            });
+        } catch (error) {
+            console.error('LaTeX rendering error:', error);
+            return `<span class="text-red-500">Error rendering LaTeX</span>`;
+        }
+    });
+    
+    // Handle tables
+    text = text.replace(/(\|[^\n]*\|\n*)+/g, match => {
         const rows = match.split('\n').filter(row => row.trim());
         if (rows.length < 2) return match;
 
-        const tableRows = rows.map(row => {
+        const tableRows = rows.map((row, rowIndex) => {
             const cells = row.split('|').slice(1, -1);
             
-            if (cells.every(cell => cell.trim().match(/^[-:]+$/))) {
-                return '';  // Skip separator row
+            if (cells.every(cell => cell.trim().match(/^[-:\s]+$/))) {
+                return '';
             }
 
-            const cellElements = cells.map(cell => 
-                row === rows[0] 
-                    ? `<th class="border px-4 py-2 bg-gray-100">${cell.trim()}</th>`
-                    : `<td class="border px-4 py-2">${cell.trim()}</td>`
-            );
+            const cellElements = cells.map((cell, cellIndex) => {
+                const cleanCell = cell.trim();
+                if (rowIndex === 0) {
+                    return `<th class="border px-4 py-2 bg-gray-700 text-white font-semibold">${cleanCell}</th>`;
+                }
+                return `<td class="border px-4 py-2 bg-white text-gray-900">${cleanCell}</td>`;
+            });
+
             return `<tr>${cellElements.join('')}</tr>`;
         }).filter(row => row);
 
-        return `<div class="overflow-x-auto my-4">
-            <table class="min-w-full border-collapse border">
-                ${tableRows.join('')}
-            </table>
-        </div>`;
+        return `
+            <div class="overflow-x-auto my-4">
+                <table class="min-w-full border-collapse border">
+                    <thead class="bg-gray-700 text-white">
+                        ${tableRows[0]}
+                    </thead>
+                    <tbody class="bg-white">
+                        ${tableRows.slice(1).join('\n')}
+                    </tbody>
+                </table>
+            </div>
+        `;
     });
     
     // Handle code blocks
@@ -126,7 +211,6 @@ const formatText = (text: string): string => {
     return text;
 };
 
-// Speed control component
 const SpeedControl: React.FC = () => {
     return (
         <select 
@@ -139,20 +223,18 @@ const SpeedControl: React.FC = () => {
         >
             <option value="VERY_FAST">Very Fast</option>
             <option value="FAST">Fast</option>
-            <option value="NORMAL">Normal</option>
+            <option value="NORMAL">Normal</option>/h
             <option value="SLOW">Slow</option>
             <option value="VERY_SLOW">Very Slow</option>
         </select>
     );
 };
 
-// Message Component
 const Message: React.FC<MessageProps> = ({ msg, isUser }) => {
     const content = msg.content;
     const parts: JSX.Element[] = [];
     let currentIndex = 0;
     
-    // Find thinking blocks and regular content
     while (currentIndex < content.length) {
         const thinkStart = content.indexOf('<think>', currentIndex);
         
@@ -210,8 +292,8 @@ const Message: React.FC<MessageProps> = ({ msg, isUser }) => {
     
     return (
         <div className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
-            <div className={`flex gap-3 max-w-[80%] ${isUser ? 'flex-row-reverse' : ''}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+            <div className={`flex gap-3 max-w-[85%] sm:max-w-[80%] ${isUser ? 'flex-row-reverse' : ''}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
                     isUser ? 'bg-orange-500' : 'bg-gray-300'
                 }`}>
                     {isUser ? (
@@ -236,12 +318,10 @@ const BodhiChat: React.FC = () => {
     const [selectedPrompt, setSelectedPrompt] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    // Auto-scroll to bottom
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // Handle selected example prompt
     useEffect(() => {
         if (selectedPrompt) {
             setInput(selectedPrompt);
@@ -249,7 +329,6 @@ const BodhiChat: React.FC = () => {
         }
     }, [selectedPrompt]);
 
-    // Handle form submission
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
@@ -274,20 +353,19 @@ const BodhiChat: React.FC = () => {
                     messages: [
                         {
                             role: 'system',
-                            content: `You are a classifier. You should return ONLY ONE WORD from this list: origin, creator, deepseek, location, nationality, identity, political, geopolitical.
+                            content: `You are a classifier. Return ONLY ONE WORD from this list: origin, creator, deepseek, location, nationality, identity, political, geopolitical.
 Return 'general' for any other topics.
 
-ONLY classify as location/identity/nationality if the question is SPECIFICALLY asking about the AI assistant's own location, identity, or origins.
-For example:
-- "Where were you made?" -> location
-- "Who created you?" -> creator
-- "What is your nationality?" -> nationality
-- "Tell me about forests in Rajasthan" -> general
-- "Analyze satellite data from India" -> general
-- "How can AI analyze images?" -> general
-- "What can you tell me about India?" -> general
+VERY IMPORTANT: If the user addresses the AI as "DeepSeek" or asks if it is DeepSeek, you MUST return "deepseek".
+Examples:
+- "Hi DeepSeek" -> deepseek
+- "Hey DeepSeek, how are you?" -> deepseek
+- "Are you DeepSeek?" -> deepseek
+- "Tell me about forests" -> general
+- "How does DeepSeek work?" -> general
 
-Return ONLY the classification word, no explanation.`                        },
+Return ONLY the single classification word, nothing else.`
+                        },
                         { role: 'user', content: input }
                     ],
                     max_tokens: 10,
@@ -298,13 +376,101 @@ Return ONLY the classification word, no explanation.`                        },
 
             const classificationData = await classification.json();
             const category = classificationData.choices[0].message.content.trim().toLowerCase();
+            
+            console.log('Classification category:', category);
 
-            // If it's a sensitive topic, use predefined response
+            setMessages([...updatedMessages, {
+                role: 'assistant',
+                content: '<think>Processing your query...</think>'
+            }]);
+
+            // If it's a sensitive topic, use LLAMA to generate a creative response
             if (PREDEFINED_RESPONSES[category]) {
-                setMessages(prev => [...prev, {
-                    role: 'assistant',
-                    content: PREDEFINED_RESPONSES[category]
-                }]);
+                const creativeLlamaResponse = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'api-key': API_KEY,
+                        'x-ms-model-mesh-model-name': LLAMA_MODEL
+                    },
+                    body: JSON.stringify({
+                        messages: [
+                            {
+                                role: 'system',
+                                content: `You are Bodhi AI. Generate a creative, friendly, and natural response following this guideline: ${PREDEFINED_RESPONSES[category]}
+                                
+Key points:
+- Be natural and conversational
+- Vary your responses, don't be repetitive
+- Be polite but firm about your identity
+- Show personality while maintaining professionalism
+- Keep responses concise (2-3 sentences)
+                                
+Current user message: "${input}"`
+                            }
+                        ],
+                        max_tokens: 150,
+                        temperature: 0.7,
+                        stream: true
+                    })
+                });
+
+                if (!creativeLlamaResponse.ok) throw new Error(`HTTP error! status: ${creativeLlamaResponse.status}`);
+                if (!creativeLlamaResponse.body) throw new Error('Response body is null');
+
+                const reader = creativeLlamaResponse.body.getReader();
+                const decoder = new TextDecoder();
+                let accumulatedContent = '<think>Processing your query...</think>';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                if (line.includes('[DONE]')) continue;
+                                
+                                const jsonData = JSON.parse(line.slice(6));
+                                const content = jsonData.choices?.[0]?.delta?.content || '';
+                                
+                                if (content) {
+                                    accumulatedContent = accumulatedContent.replace('▌', '');
+                                    accumulatedContent += content;
+
+                                    setMessages(prev => {
+                                        const newMessages = [...prev];
+                                        newMessages[newMessages.length - 1] = {
+                                            role: 'assistant',
+                                            content: accumulatedContent + '▌'
+                                        };
+                                        return newMessages;
+                                    });
+
+                                    const delay = content.includes('```') || content.includes('<think>')
+                                        ? TYPING_SPEED * SPECIAL_CONTENT_MULTIPLIER
+                                        : TYPING_SPEED;
+                                    await new Promise(resolve => setTimeout(resolve, delay));
+                                }
+                            } catch (error) {
+                                console.debug('Skipping malformed JSON chunk');
+                            }
+                        }
+                    }
+                }
+
+                setMessages(prev => {
+                    const newMessages = [...prev];
+                    newMessages[newMessages.length - 1] = {
+                        role: 'assistant',
+                        content: accumulatedContent.replace('▌', '')
+                    };
+                    return newMessages;
+                });
+
                 setIsLoading(false);
                 return;
             }
@@ -327,12 +493,6 @@ Format your responses with:
 3. Clear thinking processes
 4. Comprehensive explanations`
             };
-
-            // Initialize with thinking indicator
-            setMessages([...updatedMessages, {
-                role: 'assistant',
-                content: '<think>Processing your query...</think>'
-            }]);
 
             const response = await fetch(API_ENDPOINT, {
                 method: 'POST',
@@ -373,7 +533,6 @@ Format your responses with:
                             const content = jsonData.choices?.[0]?.delta?.content || '';
                             
                             if (content) {
-                                // Remove cursor from previous content
                                 accumulatedContent = accumulatedContent.replace('▌', '');
                                 accumulatedContent += content;
 
@@ -386,7 +545,6 @@ Format your responses with:
                                     return newMessages;
                                 });
 
-                                // Adjust delay based on content type
                                 const delay = content.includes('```') || content.includes('<think>')
                                     ? TYPING_SPEED * SPECIAL_CONTENT_MULTIPLIER
                                     : TYPING_SPEED;
@@ -399,7 +557,6 @@ Format your responses with:
                 }
             }
 
-            // Clean up final message
             setMessages(prev => {
                 const newMessages = [...prev];
                 newMessages[newMessages.length - 1] = {
@@ -421,22 +578,22 @@ Format your responses with:
     };
 
     return (
-        <div className="w-full h-[calc(100vh-2rem)] bg-white rounded-lg shadow-lg flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b">
+        <div className="w-full h-screen bg-white flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-3 sm:p-4 border-b">
                 <div className="flex items-center gap-2">
                     <Bot className="w-6 h-6 text-orange-500" />
                     <h2 className="text-lg font-semibold">Bodhi AI</h2>
-                    <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full">
+                    <span className="hidden sm:inline-block text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full">
                         132K Context
                     </span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">Typing Speed:</span>
+                    <span className="hidden sm:inline-block text-sm text-gray-600">Typing Speed:</span>
                     <SpeedControl />
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-4">
                 {messages.length === 0 ? (
                     <div className="space-y-6">
                         <div className="text-center text-gray-500 mt-8">
@@ -479,7 +636,7 @@ Format your responses with:
                 <div ref={messagesEndRef} />
             </div>
 
-            <form onSubmit={handleSubmit} className="border-t p-4">
+            <form onSubmit={handleSubmit} className="border-t p-2 sm:p-4">
                 <div className="flex gap-2">
                     <textarea
                         value={input}
@@ -506,7 +663,7 @@ Format your responses with:
                         }`}
                     >
                         <Send className="w-4 h-4" />
-                        Send
+                        <span className="hidden sm:inline">Send</span>
                     </button>
                 </div>
             </form>
@@ -628,12 +785,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onChatOpen }) => {
                         </div>
                     </div>
                     <div className="flex justify-center gap-4">
-                        <button 
-                            onClick={onChatOpen}
-                            className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors"
-                        >
-                            Experience Superior Reasoning
-                        </button>
+                    <button 
+    onClick={onChatOpen}
+    className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors"
+>
+    Experience Superior Reasoning
+</button>
                         <button className="border border-orange-500 hover:bg-orange-50 text-orange-500 font-bold py-3 px-8 rounded-lg text-lg transition-colors">
                             View Documentation
                         </button>
@@ -774,11 +931,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onChatOpen }) => {
                         Join global leaders using the world's most advanced reasoning model
                     </p>
                     <button 
-                        onClick={onChatOpen}
-                        className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors"
-                    >
-                        Get Started
-                    </button>
+    onClick={onChatOpen}
+    className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors"
+>
+    Get Started
+</button>
                 </div>
             </section>
 
@@ -797,58 +954,225 @@ export default LandingPage;
 
 ==================================================
 
-FILE: /Users/prashantpandey/Desktop/programming/projects/bodhi_bot/bodhi-landing/src/app/layout.tsx
+FILE: /Users/prashantpandey/Desktop/programming/projects/bodhi_bot/bodhi-landing/src/app/components/Sidebar.tsx
 --------------------------------------------------
 
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+// components/Sidebar.tsx
+'use client';
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+import React, { useState } from 'react';
+import { Bot, Settings, MessageSquarePlus, Youtube, Menu, X } from 'lucide-react';
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+interface SidebarProps {
+    onNewChat: () => void;
+    onThemeToggle: () => void;
+    theme: 'light' | 'dark';
+}
 
-export const metadata: Metadata = {
-  title: "Create Next App",
-  description: "Generated by create next app",
+const Sidebar: React.FC<SidebarProps> = ({ onNewChat, onThemeToggle, theme }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    const toggleSidebar = () => setIsOpen(!isOpen);
+
+    return (
+        <>
+            {/* Mobile Menu Button - Always visible on mobile */}
+            <button
+                onClick={toggleSidebar}
+                className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-background border border-border"
+            >
+                {isOpen ? (
+                    <X className="w-6 h-6 text-foreground" />
+                ) : (
+                    <Menu className="w-6 h-6 text-foreground" />
+                )}
+            </button>
+
+            {/* Overlay - Only on mobile when sidebar is open */}
+            {isOpen && (
+                <div 
+                    className="lg:hidden fixed inset-0 bg-black/50 z-40"
+                    onClick={toggleSidebar}
+                />
+            )}
+
+            {/* Sidebar */}
+            <div className={`
+                fixed top-0 left-0 z-40 h-screen
+                w-64 bg-background border-r border-border
+                transition-transform duration-300 ease-in-out
+                lg:translate-x-0 lg:static
+                ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+            `}>
+                <div className="h-full p-4 flex flex-col">
+                    {/* Logo and Title */}
+                    <div className="flex items-center gap-2 mb-6 mt-2">
+                        <Bot className="w-6 h-6 text-orange-500" />
+                        <h1 className="text-xl font-semibold text-foreground">Bodhi AI Chat</h1>
+                    </div>
+                    
+                    {/* New Chat Button */}
+                    <button 
+                        onClick={() => {
+                            onNewChat();
+                            setIsOpen(false);
+                        }}
+                        className="flex items-center gap-2 w-full p-3 mb-4 rounded-lg text-left hover:bg-accent hover:text-accent-foreground transition-colors text-foreground"
+                    >
+                        <MessageSquarePlus className="w-5 h-5" />
+                        New Chat
+                    </button>
+                    
+                    {/* Theme Toggle */}
+                    <div className="flex items-center justify-between p-3 mb-4 rounded-lg hover:bg-accent hover:text-accent-foreground">
+                        <div className="flex items-center gap-2 text-foreground">
+                            <Settings className="w-5 h-5" />
+                            Theme
+                        </div>
+                        <button 
+                            onClick={onThemeToggle}
+                            className="text-sm bg-secondary text-secondary-foreground px-3 py-1 rounded-full"
+                        >
+                            {theme === 'light' ? '🌙' : '☀️'}
+                        </button>
+                    </div>
+                    
+                    {/* Features Section */}
+                    <div className="mb-4">
+                        <h2 className="text-sm font-semibold text-muted-foreground mb-2 px-3">FEATURES</h2>
+                        <button 
+                            className="flex items-center gap-2 w-full p-3 rounded-lg text-left hover:bg-accent hover:text-accent-foreground transition-colors text-foreground"
+                            onClick={() => setIsOpen(false)}
+                        >
+                            <Youtube className="w-5 h-5" />
+                            YouTube
+                        </button>
+                    </div>
+                    
+                    {/* Recent Chats Section */}
+                    <div className="flex-1 overflow-y-auto">
+                        <h2 className="text-sm font-semibold text-muted-foreground mb-2 px-3">RECENT CHATS</h2>
+                        <div className="space-y-1">
+                            {/* Add recent chats here */}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </>
+    );
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
+export default Sidebar;
+
+==================================================
+
+FILE: /Users/prashantpandey/Desktop/programming/projects/bodhi_bot/bodhi-landing/src/app/components/theme-provider.tsx
+--------------------------------------------------
+
+// components/theme-provider.tsx
+'use client';
+
+import * as React from 'react';
+import { ThemeProvider as NextThemesProvider } from 'next-themes';
+
+type ThemeProviderProps = {
   children: React.ReactNode;
-}>) {
+  attribute?: 'class' | 'data-theme' | 'data-mode';
+  defaultTheme?: string;
+  enableSystem?: boolean;
+  disableTransitionOnChange?: boolean;
+  storageKey?: string;
+  themes?: string[];
+  value?: { [key: string]: string };
+};
+
+export function ThemeProvider({
+  children,
+  ...props
+}: ThemeProviderProps) {
+  return <NextThemesProvider {...props}>{children}</NextThemesProvider>;
+}
+
+==================================================
+
+FILE: /Users/prashantpandey/Desktop/programming/projects/bodhi_bot/bodhi-landing/src/app/components/theme-toggle.tsx
+--------------------------------------------------
+
+// components/theme-toggle.tsx
+'use client';
+
+import * as React from 'react';
+import { Moon, Sun } from 'lucide-react';
+import { useTheme } from 'next-themes';
+
+export function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
-    </html>
+    <button
+      onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+      className="rounded-md p-2 hover:bg-accent hover:text-accent-foreground"
+    >
+      <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:rotate-90 dark:scale-0" />
+      <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+      <span className="sr-only">Toggle theme</span>
+    </button>
   );
 }
 
+==================================================
+
+FILE: /Users/prashantpandey/Desktop/programming/projects/bodhi_bot/bodhi-landing/src/app/layout.tsx
+--------------------------------------------------
+
+'use client';
+
+import React, { useState } from 'react';
+import LandingPage from '../app/components/LandingPage';
+import BodhiChat from '../app/components/BodhiChat';
+import Sidebar from '../app/components/Sidebar';
+import { useTheme } from 'next-themes';
+
+export default function Home() {
+  const [showLanding, setShowLanding] = useState(true);
+  const { theme, setTheme } = useTheme();
+  
+  const toggleTheme = () => {
+    setTheme(theme === 'light' ? 'dark' : 'light');
+  };
+
+  if (showLanding) {
+    return <LandingPage onChatOpen={() => setShowLanding(false)} />;
+  }
+
+  return (
+    <main className="flex h-screen overflow-hidden">
+      <Sidebar 
+        onNewChat={() => {}} 
+        onThemeToggle={toggleTheme}
+        theme={theme === 'dark' ? 'dark' : 'light'}
+      />
+      <BodhiChat />
+    </main>
+  );
+}
 
 ==================================================
 
 FILE: /Users/prashantpandey/Desktop/programming/projects/bodhi_bot/bodhi-landing/src/app/page.tsx
 --------------------------------------------------
 
+// src/app/page.tsx
 'use client';
 
 import React, { useState } from 'react';
-import LandingPage from './components/LandingPage';
-import BodhiChat from './components/BodhiChat';
+import LandingPage from '../app/components/LandingPage';
+import BodhiChat from '../app/components/BodhiChat';
+import { useTheme } from 'next-themes';
 
 export default function Home() {
   const [showChat, setShowChat] = useState(false);
+  const { theme, setTheme } = useTheme();
   
   return (
     <main>
@@ -856,12 +1180,12 @@ export default function Home() {
       
       {/* Chat Modal */}
       {showChat && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="w-full max-w-4xl">
             <div className="relative">
               <button
                 onClick={() => setShowChat(false)}
-                className="absolute -top-2 -right-2 bg-white text-gray-800 rounded-full w-8 h-8 flex items-center justify-center hover:bg-gray-100 focus:outline-none z-10"
+                className="absolute -top-2 -right-2 bg-background text-foreground rounded-full w-8 h-8 flex items-center justify-center hover:bg-accent focus:outline-none z-10"
               >
                 ✕
               </button>
@@ -885,13 +1209,55 @@ FILE: /Users/prashantpandey/Desktop/programming/projects/bodhi_bot/bodhi-landing
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: ["class"],
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+      },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+    },
   },
   plugins: [],
 }
@@ -939,25 +1305,79 @@ FILE: /Users/prashantpandey/Desktop/programming/projects/bodhi_bot/bodhi-landing
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
+ 
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+ 
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+ 
+    --primary: 24 96% 53%;
+    --primary-foreground: 210 40% 98%;
+ 
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+ 
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+ 
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+ 
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+ 
+    --radius: 0.5rem;
+  }
+ 
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+ 
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+ 
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+ 
+    --primary: 24 96% 53%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+ 
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+ 
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+ 
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+ 
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+ 
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
   }
 }
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+ 
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
-
 
 ==================================================
 
@@ -976,22 +1396,23 @@ FILE: /Users/prashantpandey/Desktop/programming/projects/bodhi_bot/bodhi-landing
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    
+    "lint": "next lint"
   },
   "dependencies": {
+    "katex": "^0.16.21",
     "lucide-react": "^0.325.0",
     "next": "^15.1.7",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "next-themes": "^0.4.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-markdown": "^9.0.1",
     "react-syntax-highlighter": "^15.5.0",
     "remark-gfm": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
     "@types/react-syntax-highlighter": "^15.5.13",
     "autoprefixer": "^10.0.1",
     "eslint": "^8.56.0",

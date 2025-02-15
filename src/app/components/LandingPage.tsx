@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Brain, Sparkles, Zap, Youtube, Network, Cpu, Workflow, GitBranch, Scale } from 'lucide-react';
+import { Brain, Sparkles, Zap, Youtube, Network, Cpu, Workflow, GitBranch, Scale,Menu } from 'lucide-react';
 
 interface LandingPageProps {
     onChatOpen: () => void;
@@ -53,13 +53,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onChatOpen }) => {
             {/* Navigation Bar */}
             <nav className="border-b border-gray-100 bg-white">
                 <div className="container mx-auto px-6 py-4">
-                    <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between">
                         <div className="flex items-center">
                             <a href="/" className="text-2xl font-bold text-gray-900 flex items-center">
                                 <span className="text-orange-500">Bodhi</span>AI
                             </a>
                         </div>
-                        <div className="flex items-center space-x-4">
+                        <div className="hidden md:flex items-center space-x-4">
                             <button className="text-gray-600 hover:text-orange-500 px-4 py-2 rounded-lg transition-colors">
                                 Documentation
                             </button>
@@ -73,6 +73,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onChatOpen }) => {
                                 Sign Up
                             </button>
                         </div>
+                        <button className="md:hidden text-gray-600 hover:text-orange-500 p-2">
+                            <Menu className="w-6 h-6" />
+                        </button>
                     </div>
                 </div>
             </nav>

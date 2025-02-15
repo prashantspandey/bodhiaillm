@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import LandingPage from './components/LandingPage';
-import BodhiChat from './components/BodhiChat';
-import Sidebar from './components/Sidebar';
+import LandingPage from '../app/components/LandingPage';
+import BodhiChat from '../app/components/BodhiChat';
+import Sidebar from '../app/components/Sidebar';
 import { useTheme } from 'next-themes';
 
 export default function Home() {
